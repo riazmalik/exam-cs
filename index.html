@@ -3,20 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Best of Luck</title>
+<title>Best of Luck Animation</title>
 
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
-
 <style>
 * { box-sizing: border-box; margin:0; padding:0; }
-
 body{
     font-family:'Orbitron', Arial, sans-serif;
     overflow:hidden;
     position: relative;
     background: url("./wish.jpg") center/cover no-repeat fixed;
 }
-
 body::before {
     content:"";
     position:absolute;
@@ -24,13 +21,11 @@ body::before {
     background-color: rgba(0,0,0,0.35);
     z-index:0;
 }
-
 canvas{
     position:absolute;
     inset:0;
     z-index:1;
 }
-
 .controls{
     position:absolute;
     top:25px;
@@ -38,7 +33,6 @@ canvas{
     text-align:center;
     z-index:10;
 }
-
 input{
     padding:12px 20px;
     border-radius:30px;
@@ -48,7 +42,6 @@ input{
     width:65%;
     max-width:260px;
 }
-
 button{
     padding:12px 22px;
     border:none;
@@ -68,7 +61,7 @@ button:hover{
 
 <div class="controls">
     <input id="studentName" placeholder="Enter Your Name">
-    <button onclick="startAnimation()">Wish Me ✨</button>
+    <button onclick="startTransition()">Wish Me ✨</button>
 </div>
 
 <canvas id="canvas"></canvas>
@@ -77,93 +70,175 @@ button:hover{
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-function resize(){
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-}
+function resize(){ canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
 resize();
 window.addEventListener("resize", resize);
 
-let rainbowParticles = [];
 let time = 0;
+let globeParticles = [];
+let rainbowParticles = [];
+let animationState = "globe"; // globe -> explode -> message
 
-/* Particle class for rainbow background */
 class Particle{
     constructor(x,y){
-        this.x = x;
-        this.y = y;
-        this.size = 2 + Math.random()*2;
-        this.vx = (Math.random()-0.5)*2;
-        this.vy = (Math.random()-0.5)*2;
+        this.x = x; this.y = y;
+        this.baseX = x;
+        this.baseY = y;
+        this.size = 2;
+        this.vx = (Math.random()-0.5)*8;
+        this.vy = (Math.random()-0.5)*8;
     }
-    move(){
-        this.x += this.vx;
-        this.y += this.vy;
-        if(this.x < 0 || this.x > canvas.width) this.vx *= -1;
-        if(this.y < 0 || this.y > canvas.height) this.vy *= -1;
-    }
-    draw(hue){
-        ctx.fillStyle = `hsl(${hue}, 80%, 60%)`;
+    draw(color){
+        ctx.fillStyle = color;
         ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size,0,Math.PI*2);
+        ctx.arc(this.x,this.y,this.size,0,Math.PI*2);
         ctx.fill();
     }
+    wave(t){
+        this.x = this.baseX + Math.sin(t + this.baseY*0.01)*8;
+    }
+    explode(){ this.x += this.vx; this.y += this.vy; }
+    back(){ this.x += (this.baseX - this.x)*0.08; this.y += (this.baseY - this.y)*0.08; }
 }
 
-/* Create rainbow particles */
-function createParticles(){
+/* Background floating rainbow particles */
+function createRainbowParticles(){
     rainbowParticles = [];
     for(let i=0;i<400;i++){
-        rainbowParticles.push(new Particle(Math.random()*canvas.width, Math.random()*canvas.height));
+        rainbowParticles.push({
+            x:Math.random()*canvas.width,
+            y:Math.random()*canvas.height,
+            size:2 + Math.random()*2,
+            vx:(Math.random()-0.5)*2,
+            vy:(Math.random()-0.5)*2
+        });
     }
 }
-createParticles();
+createRainbowParticles();
 
-/* Animate text letters */
-function animateLetters(message, yPosition, offsetTime){
-    let letters = message.split('');
-    let size = Math.max(28, Math.min(canvas.width/12, 60));
-    ctx.font = `700 ${size}px Orbitron`;
-    ctx.textAlign = "center";
+function drawRainbowParticles(){
+    rainbowParticles.forEach(p=>{
+        p.x += p.vx; p.y += p.vy;
+        if(p.x<0||p.x>canvas.width)p.vx*=-1;
+        if(p.y<0||p.y>canvas.height)p.vy*=-1;
+        let hue = (time*100 + p.x*0.5 + p.y*0.5) % 360;
+        ctx.fillStyle = `hsl(${hue},80%,60%)`;
+        ctx.beginPath();
+        ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+        ctx.fill();
+    });
+}
 
-    let totalWidth = ctx.measureText(message).width;
-    let startX = canvas.width/2 - totalWidth/2;
+/* Create globe particles */
+function createGlobe(){
+    globeParticles = [];
+    let cx = canvas.width/2;
+    let cy = canvas.height/2;
+    let radius = Math.min(canvas.width,canvas.height)/4;
+    for(let i=0;i<2000;i++){
+        let a = Math.random()*Math.PI*2;
+        let r = radius*Math.sqrt(Math.random());
+        let x = cx + r*Math.cos(a);
+        let y = cy + r*Math.sin(a);
+        globeParticles.push(new Particle(x,y));
+    }
+}
+createGlobe();
 
-    letters.forEach((letter,i)=>{
-        let letterWidth = ctx.measureText(letter).width;
-        let x = startX + letterWidth/2;
-        let y = yPosition + Math.sin(time*3 + i*0.5 + offsetTime)*8; // wave effect
-        let hue = (time*80 + i*20) % 360; // color change
-        ctx.fillStyle = `hsl(${hue}, 90%, 70%)`;
-        ctx.fillText(letter, x, y);
-        startX += letterWidth;
+/* Draw globe */
+function drawGlobe(){
+    globeParticles.forEach(p=>{
+        p.wave(time);
+        p.draw("rgba(170,120,255,0.7)");
     });
 }
 
 /* Main animation */
-function animate(name){
+function animate(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    time += 0.02;
+    time += 0.03;
+    drawRainbowParticles();
 
-    // Draw rainbow background particles
-    rainbowParticles.forEach(p=>{
-        p.move();
-        let hue = (time*100 + p.x*0.5 + p.y*0.5) % 360;
-        p.draw(hue);
-    });
+    if(animationState==="globe") drawGlobe();
+    requestAnimationFrame(animate);
+}
+animate();
 
-    // Animate each letter of the message
-    animateLetters(`Best of Luck ${name}!`, canvas.height/2 - 20, 0);
-    animateLetters(`For Your Exam`, canvas.height/2 + 40, 10);
+/* Transition globe -> message */
+function startTransition(){
+    animationState = "explode";
+    let name = document.getElementById("studentName").value.trim();
+    if(!name) name="Student";
 
-    requestAnimationFrame(()=>animate(name));
+    let explosionTime = 0;
+    function explodeAnim(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        time += 0.03;
+        drawRainbowParticles();
+        globeParticles.forEach(p=>{ p.explode(); p.draw("rgba(200,150,255,0.8)"); });
+        explosionTime += 16;
+        if(explosionTime<700){
+            requestAnimationFrame(explodeAnim);
+        } else {
+            morphText(name);
+        }
+    }
+    explodeAnim();
 }
 
-/* Start animation */
-function startAnimation(){
-    let name = document.getElementById("studentName").value.trim();
-    if(!name) name = "Student";
-    animate(name);
+/* Morph globe into animated message */
+function morphText(name){
+    animationState = "message";
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    let message1 = `Best of Luck ${name}!`;
+    let message2 = "For Your Exam";
+
+    ctx.font = `700 ${Math.max(28,Math.min(canvas.width/12,60))}px Orbitron`;
+    ctx.textAlign = "center";
+
+    // Draw message once to get positions
+    ctx.fillStyle="white";
+    ctx.fillText(message1,canvas.width/2,canvas.height/2-20);
+    ctx.fillText(message2,canvas.width/2,canvas.height/2+40);
+    let img = ctx.getImageData(0,0,canvas.width,canvas.height).data;
+
+    let letterParticles = [];
+    for(let y=0;y<canvas.height;y+=6){
+        for(let x=0;x<canvas.width;x+=6){
+            let i=(y*canvas.width + x)*4;
+            if(img[i+3]>150) letterParticles.push(new Particle(x,y));
+        }
+    }
+
+    let t=0;
+    function animateMessage(){
+        ctx.clearRect(0,0,canvas.width,canvas.height);
+        t+=0.02;
+        drawRainbowParticles();
+
+        // Animate letters forming message with slight wave + color
+        letterParticles.forEach(p=>{
+            p.back();
+            let hue = (t*100 + p.x*0.3 + p.y*0.3)%360;
+            let yOffset = Math.sin(t*3 + p.x*0.02)*4;
+            ctx.fillStyle=`hsl(${hue},80%,70%)`;
+            ctx.beginPath();
+            ctx.arc(p.x,p.y+yOffset,p.size,0,Math.PI*2);
+            ctx.fill();
+        });
+
+        // Draw text clearly on top in white
+        let size = Math.max(28,Math.min(canvas.width/12,60));
+        ctx.font = `700 ${size}px Orbitron`;
+        ctx.textAlign="center";
+        ctx.fillStyle="white";
+        ctx.fillText(message1,canvas.width/2,canvas.height/2-20);
+        ctx.fillText(message2,canvas.width/2,canvas.height/2+40);
+
+        requestAnimationFrame(animateMessage);
+    }
+    animateMessage();
 }
 </script>
 
